@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Webcam Recorder</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="container">
+    <div id="videoBackdrop"></div>
+    <div id="videoContainer">
+        <video id="videoElement" autoplay muted></video>
+        <div id="timer">00:00</div> 
+    </div>
+    <div id="controls">
+        <button id="startRecord" class="button">Start Recording</button>
+        <button id="stopRecord" class="button" disabled>Stop Recording</button>
+        <button id="download" class="button" disabled>Download</button>
+    </div>
+    <div id="notepadContainer" style="left: 688px; top: 46px;">
+        <textarea id="notepad" placeholder="Write notes here"></textarea>
+        <div id="resizeHandle"></div>
+        <div id="dragHandle"></div>
+    </div>
+</div>
+
+<script>
+    const videoElement = document.getElementById('videoElement');
+    const startRecordButton = document.getElementById('startRecord');
+    const stopRecordButton = document.getElementById('stopRecord');
+    const downloadButton = document.getElementById('download');
+    const timerDisplay = document.getElementById('timer');
+
+    let mediaRecorder;
+    let recordedChunks = [];
+    let timerInterval; 
+
+    // Function to request permission and start recording
+    function requestPermissionAndStartRecording() {
+        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+        .then(function(stream) {
+            videoElement.srcObject = stream;
+            mediaRecorder = new MediaRecorder(stream);
+            
+            mediaRecorder.ondataavailable = function(event) {
+                recordedChunks.push(event.data);
+            };
+            
+            mediaRecorder.onstop = function() {
+                clearInterval(timerInterval); // Stop the timer when recording stops
+                const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                const url = URL.createObjectURL(blob);
+                downloadButton.href = url;
+                downloadButton.download = 'recorded-video.webm';
+                downloadButton.disabled = false;
+                videoElement.muted = true;
+            };
+
+            // Start timer
+            let startTime = Date.now();
+            timerInterval = setInterval(() => {
+                let elapsedTime = Date.now() - startTime;
+                let minutes = Math.floor(elapsedTime / 60000);
+                let seconds = Math.floor((elapsedTime % 60000) / 1000);
+                timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }, 1000);
+
+            // Start recording
+            mediaRecorder.start();
+            startRecordButton.disabled = true;
+            stopRecordButton.disabled = false;
+        })
+        .catch(function(err) {
+            console.error('Error accessing webcam:', err);
+        });
+    }
+
+    startRecordButton.addEventListener('click', function() {
+        requestPermissionAndStartRecording();
+    });
+
+    stopRecordButton.addEventListener('click', function() {
+        // Stop recording
+        mediaRecorder.stop();
+        startRecordButton.disabled = false;
+        stopRecordButton.disabled = true;
+    });
+</script>
+
+<script>
+const notepadContainer = document.getElementById('notepadContainer');
+const notepad = document.getElementById('notepad');
+const resizeHandle = document.getElementById('resizeHandle');
+const dragHandle = document.getElementById('dragHandle');
+
+let isResizingX = false;
+let isResizingY = false;
+let isDragging = false;
+let startX;
+let startY;
+let startWidth;
+let startHeight;
+
+// Event listener for mouse down on the resize handle
+resizeHandle.addEventListener('mousedown', function(event) {
+    isResizingX = true;
+    isResizingY = true;
+    startX = event.clientX;
+    startY = event.clientY;
+    startWidth = parseInt(document.defaultView.getComputedStyle(notepadContainer).width, 10);
+    startHeight = parseInt(document.defaultView.getComputedStyle(notepadContainer).height, 10);
+    event.preventDefault(); // Prevent default browser behavior
+});
+
+// Event listener for mouse down on the drag handle
+dragHandle.addEventListener('mousedown', function(event) {
+    isDragging = true;
+    startX = event.clientX;
+    startY = event.clientY;
+    event.preventDefault(); // Prevent default browser behavior
+});
+
+// Event listener for mouse move
+document.addEventListener('mousemove', function(event) {
+    if (isResizingX) {
+        const newWidth = startWidth + (event.clientX - startX);
+        notepadContainer.style.width = `${newWidth}px`;
+    }
+    if (isResizingY) {
+        const newHeight = startHeight + (event.clientY - startY);
+        notepadContainer.style.height = `${newHeight}px`;
+    }
+    if (isDragging) {
+        const deltaX = event.clientX - startX;
+        const deltaY = event.clientY - startY;
+        const newLeft = notepadContainer.offsetLeft + deltaX;
+        const newTop = notepadContainer.offsetTop + deltaY;
+        notepadContainer.style.left = `${newLeft}px`;
+        notepadContainer.style.top = `${newTop}px`;
+        startX = event.clientX;
+        startY = event.clientY;
+    }
+});
+
+// Event listener for mouse up
+document.addEventListener('mouseup', function(event) {
+    isResizingX = false;
+    isResizingY = false;
+    isDragging = false;
+});
+
+</script>
+</body>
+</html>
